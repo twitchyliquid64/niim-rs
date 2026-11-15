@@ -11,7 +11,7 @@ mod raster;
 mod request;
 mod response;
 
-pub use model::{Alignment, ModelInfo, Orientation, PrintSequence};
+pub use model::{Alignment, LabelSize, Margins, ModelInfo, Orientation, PrintSequence};
 pub use packet::{CONNECT_PREFIX, HEAD, Packet, Reassembler, TAIL};
 pub use raster::{Bitmap, MAX_COLUMNS, encode_rows, pixel_counts};
 pub use request::{HeartbeatKind, InfoKey, Request, cmd};

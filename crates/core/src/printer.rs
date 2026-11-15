@@ -8,9 +8,9 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 use crate::proto::{
-    Alignment, Bitmap, ConnectResult, Heartbeat, HeartbeatKind, Identity, InfoKey, ModelInfo,
-    Orientation, PrintSequence, PrintStatus, Request, RfidTag, StatusData, Version, encode_rows,
-    parse_ack, parse_mac, parse_model_id, parse_serial,
+    Alignment, Bitmap, ConnectResult, Heartbeat, HeartbeatKind, Identity, InfoKey, LabelSize,
+    Margins, ModelInfo, Orientation, PrintSequence, PrintStatus, Request, RfidTag, StatusData,
+    Version, encode_rows, parse_ack, parse_mac, parse_model_id, parse_serial,
 };
 use crate::session::Session;
 use crate::transport::Connection;
@@ -290,6 +290,44 @@ impl Printer {
             (width_mm * dpmm).round() as usize,
             (height_mm * dpmm).round() as usize,
         )
+    }
+
+    /// Margins to keep clear on this printer's labels ([`ModelInfo::margins`]).
+    pub fn margins(&self) -> Margins {
+        self.info()
+            .model
+            .map(ModelInfo::margins)
+            .unwrap_or_default()
+    }
+
+    /// The size of the loaded label: the roll's RFID barcode looked up in the table of known
+    /// rolls, else the model's stock label. `None` if neither is known (the printers can't
+    /// report the size themselves).
+    pub async fn detect_label_size(&self) -> Result<Option<LabelSize>> {
+        let tag = optional(self.consumable()).await?.flatten();
+        if let Some(size) = tag
+            .as_ref()
+            .and_then(|t| LabelSize::from_roll_barcode(&t.barcode))
+        {
+            return Ok(Some(size));
+        }
+        let fallback = self.info().model.and_then(ModelInfo::default_label);
+        if let (Some(tag), Some(size)) = (&tag, fallback) {
+            log::warn!(
+                "unknown roll {}, assuming {}x{} mm",
+                tag.barcode,
+                size.width_mm,
+                size.height_mm
+            );
+        }
+        Ok(fallback)
+    }
+
+    /// The layout page for a label on this printer: its canvas size and safe area
+    /// (see [`crate::label::render`]).
+    #[cfg(feature = "label")]
+    pub fn page(&self, size: LabelSize) -> crate::label::Page {
+        crate::label::Page::new(size, self.info().dots_per_mm(), self.margins())
     }
 
     /// Convert a label image (as viewed) into a full-head-width raster (§7.1): rotate for

@@ -38,6 +38,88 @@ pub enum PrintSequence {
     V4,
 }
 
+/// A label's size in millimetres, as it is read.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LabelSize {
+    /// Width as read.
+    pub width_mm: f32,
+    /// Height as read.
+    pub height_mm: f32,
+}
+
+impl LabelSize {
+    /// A label of the given size.
+    pub const fn new(width_mm: f32, height_mm: f32) -> Self {
+        Self {
+            width_mm,
+            height_mm,
+        }
+    }
+
+    /// The size of a known roll, from its RFID barcode ([`super::RfidTag::barcode`]).
+    ///
+    /// The printers can't report the label size, so this is a table of rolls we have measured.
+    pub fn from_roll_barcode(barcode: &str) -> Option<Self> {
+        match barcode {
+            "10262260" => Some(Self::new(50.0, 30.0)), // B1 stock roll, T series
+            "01222281" => Some(Self::new(40.0, 12.0)), // D101 T12-40-160
+            _ => None,
+        }
+    }
+}
+
+impl std::str::FromStr for LabelSize {
+    type Err = String;
+
+    /// Parse `WxH` in millimetres, e.g. `40x12` or `50x30mm`.
+    fn from_str(s: &str) -> Result<Self, String> {
+        let err = || format!("label size `{s}` is not WIDTHxHEIGHT in mm, e.g. 40x12");
+        let t = s.trim().to_ascii_lowercase();
+        let t = t.strip_suffix("mm").unwrap_or(&t);
+        let (w, h) = t.split_once('x').ok_or_else(err)?;
+        let w: f32 = w.trim().parse().map_err(|_| err())?;
+        let h: f32 = h.trim().parse().map_err(|_| err())?;
+        if w > 0.0 && h > 0.0 && w <= 1000.0 && h <= 1000.0 {
+            Ok(Self::new(w, h))
+        } else {
+            Err(err())
+        }
+    }
+}
+
+/// The strip along each edge of a label, in millimetres, that layout should keep clear because it
+/// prints unreliably or not at all.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Margins {
+    /// Left edge, as read.
+    pub left: f32,
+    /// Top edge.
+    pub top: f32,
+    /// Right edge.
+    pub right: f32,
+    /// Bottom edge.
+    pub bottom: f32,
+}
+
+impl Margins {
+    /// The same margin on every edge.
+    pub const fn uniform(mm: f32) -> Self {
+        Self {
+            left: mm,
+            top: mm,
+            right: mm,
+            bottom: mm,
+        }
+    }
+}
+
+impl Default for Margins {
+    /// 1 mm all round.
+    fn default() -> Self {
+        Self::uniform(1.0)
+    }
+}
+
 /// Static facts about a printer model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelInfo {
@@ -97,6 +179,29 @@ impl ModelInfo {
             _ => self
                 .sequence
                 .or((protocol_version >= 4).then_some(PrintSequence::V4)),
+        }
+    }
+
+    /// Margins to keep clear on this model's labels (measured on the B1 and D101, see
+    /// `PROTOCOL.md`; 1 mm all round otherwise).
+    pub fn margins(&self) -> Margins {
+        match self.name {
+            // The head is 48 mm wide: the right 2 mm of a 50 mm label never prints.
+            "B1" => Margins {
+                right: 3.0,
+                ..Margins::uniform(1.0)
+            },
+            _ => Margins::uniform(1.0),
+        }
+    }
+
+    /// The label this model ships with, where we know it: a fallback when the roll isn't
+    /// recognised.
+    pub fn default_label(&self) -> Option<LabelSize> {
+        match self.name {
+            "B1" => Some(LabelSize::new(50.0, 30.0)),
+            "D101" => Some(LabelSize::new(40.0, 12.0)),
+            _ => None,
         }
     }
 

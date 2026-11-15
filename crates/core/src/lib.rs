@@ -21,10 +21,15 @@
 //! 3. [`session`]: request/response matching, pacing, unsolicited events.
 //! 4. [`printer`]: handshake, normalised status, print sequences, label geometry.
 //! 5. [`discover`] / [`Discovered`]: find and connect.
+//!
+//! Beside the stack, [`label`] (feature `label`) turns a line of markup into a [`Bitmap`]:
+//! text, QR codes, barcodes and images, laid out to fit a label.
 
 #![warn(missing_docs)]
 
 mod error;
+#[cfg(feature = "label")]
+pub mod label;
 pub mod printer;
 pub mod proto;
 pub mod session;
@@ -35,7 +40,7 @@ use std::time::Duration;
 
 pub use error::{Error, Result};
 pub use printer::{Paper, PrintOptions, Printer, PrinterInfo, Progress, Status};
-pub use proto::{Bitmap, ModelInfo};
+pub use proto::{Bitmap, LabelSize, Margins, ModelInfo};
 
 #[cfg(any(feature = "ble", feature = "usb"))]
 /// A printer found by [`discover`], not yet connected.

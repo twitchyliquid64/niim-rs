@@ -7,11 +7,13 @@ edition.workspace = true
 publish.workspace = true
 
 [features]
-default = ["ble", "usb"]
+default = ["ble", "usb", "label"]
 # Bluetooth LE via btleplug (on Linux this pulls in libdbus-sys, the one allowed C dependency).
 ble = ["dep:btleplug"]
 # USB CDC via nusb (pure Rust).
 usb = ["dep:nusb"]
+# Label markup, layout and rendering: text, QR codes, barcodes, images (all pure Rust).
+label = ["dep:fontdue", "dep:qrcode", "dep:barcoders"]
 
 [dependencies]
 tokio = { workspace = true, features = ["sync", "time", "io-util", "rt", "macros"] }
@@ -20,6 +22,9 @@ log.workspace = true
 thiserror.workspace = true
 btleplug = { workspace = true, optional = true }
 nusb = { workspace = true, optional = true, features = ["tokio"] }
+fontdue = { workspace = true, optional = true }
+qrcode = { workspace = true, optional = true }
+barcoders = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }
