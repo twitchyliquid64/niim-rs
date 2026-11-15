@@ -294,7 +294,10 @@ async fn run(cli: Cli) -> AnyResult<()> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,btleplug=off")).init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("warn,btleplug=off"),
+    )
+    .init();
     match run(Cli::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
