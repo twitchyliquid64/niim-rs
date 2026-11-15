@@ -59,8 +59,15 @@ Across both models, bytes [4..6] of PrintStatus are one less than bytes [2..4] o
 - **A narrow raster is centred** on the head. A 192-column (24 mm) raster on the 50 mm label left 12 mm on the
   column-0 side and 15 mm on the other, so it is centred to within ~1.5 mm (head/label tolerance). The B1's
   heartbeat-3 "printhead alignment" is `2`, which plausibly means "centre" **(unverified)**.
-- **Recommended for B1 50 × 30 labels:** send `cols = 384` (48 mm) centred on the 50 mm label, or a narrower
-  raster, which is also centred. Use `rows = 240`.
+- **Head vs. 50 mm label** (refined with full-width test labels printed through `niimctl`): head dot 0 is at the
+  label's **left edge**, so the 384-dot head covers label columns **0–383**. The right-most 2 mm (16 dots) can't be
+  printed. In the 192-column test this showed up as a ~1 mm shift of a "centred" raster toward column 0.
+  - The outermost dot column at the left edge doesn't mark reliably.
+  - A border 1 mm in prints on the top, left and bottom.
+  - The last row doesn't print (seen on both models).
+- **Recommended for B1 50 × 30 labels:** send a full 384-column raster made from label columns 0–383 (niim-core
+  does this via the model's `x_offset = +8`). Keep content ≥ 1 mm from the left, top and bottom edges and ≥ 2 mm
+  from the right edge. Use `rows = 240`.
 
 **D101: measured on hardware (2026-11-14, BLE, unit `D101-F310020193`):**
 
@@ -125,6 +132,10 @@ Across both models, bytes [4..6] of PrintStatus are one less than bytes [2..4] o
 - **Recommended for 12 mm D101 labels:** send `cols = 96` and `rows = length_mm × 8`, and keep content at least
   **1 mm (8 rows) from both ends** and **6 dots from column 0**. Discard (or blank-print) the first label after
   loading a roll.
+- **Confirmed with a 40 × 12 mm orientation label printed through `niimctl`:** rotating the label image 90°
+  clockwise (niimbluelib's `left` direction) and placing it against head dot 191 prints it upright and unmirrored.
+  A border 1 mm in is fully visible. The outermost hairline is lost on the bottom (head dots 96–99 are just off
+  the label) and on the right (the last row).
 
 **D101 still open:**
 

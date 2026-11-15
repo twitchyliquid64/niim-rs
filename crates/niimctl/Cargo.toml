@@ -10,6 +10,9 @@ publish.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+log.workspace = true
+env_logger.workspace = true
+image.workspace = true
 
 # Our crates
 niim-core.workspace = true

@@ -6,11 +6,20 @@ license.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+default = ["ble", "usb"]
+# Bluetooth LE via btleplug (on Linux this pulls in libdbus-sys, the one allowed C dependency).
+ble = ["dep:btleplug"]
+# USB CDC via nusb (pure Rust).
+usb = ["dep:nusb"]
+
 [dependencies]
-tokio = { workspace = true, features = ["sync", "time", "io-util"] }
-btleplug.workspace = true
-nusb.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "io-util", "rt", "macros"] }
+futures.workspace = true
+log.workspace = true
+thiserror.workspace = true
+btleplug = { workspace = true, optional = true }
+nusb = { workspace = true, optional = true, features = ["tokio"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
-futures.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }
