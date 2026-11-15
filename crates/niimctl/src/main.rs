@@ -27,7 +27,7 @@ enum Command {
     Status(SelectArgs),
     /// Print a PNG label image (as the label is read; black pixels print)
     Print(PrintArgs),
-    /// Print a label written in simple markup: text, QR codes, barcodes, images
+    /// Print a label written in simple markup: text, QR codes, barcodes, AprilTags, images
     #[command(long_about = LABEL_HELP)]
     Label(LabelArgs),
     /// Write a PNG test pattern sized for a label (orientation and placement check)
@@ -89,9 +89,12 @@ a new line. Tags in square brackets change what follows:
   [col]                     start a new column to the right
   [qr:DATA]                 QR code
   [code128:DATA]            barcodes; also [ean13:DIGITS] [ean8:DIGITS] [upca:DIGITS]
+  [apriltag:ID]             AprilTag (tag36h11); [apriltag 25h9:ID] [apriltag 41h12:ID]
   [img:FILE.png]            image, dithered; [img threshold:FILE.png] for logos
 
 Codes and images take an optional height: [qr 10mm:DATA] [img 8mm:logo.png].
+For an AprilTag it is the tag size detectors use (the black square's edge), printed
+to the nearest whole dot per module; the size achieved is reported.
 Write \[ \] \\ for literal brackets and backslashes.
 
 Examples:
@@ -406,6 +409,9 @@ async fn label(args: &LabelArgs) -> AnyResult<()> {
     };
     for w in &rendered.warnings {
         eprintln!("warning: {w}");
+    }
+    for n in &rendered.notes {
+        eprintln!("{n}");
     }
     if let Some(path) = &args.preview {
         save_preview(&rendered.bitmap, &page, path)?;

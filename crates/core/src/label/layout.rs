@@ -3,14 +3,14 @@
 //! Each column is measured at a trial base size (`em`, in dots); everything without a fixed
 //! size scales with it. The largest `em` at which the column fits its box wins.
 
-use super::code::{BAR_QUIET, Modules, QR_QUIET, encode};
-use super::markup::{Column, HAlign, Item, Label, Line, Size, VAlign};
+use super::code::{BAR_QUIET, Modules, encode};
+use super::markup::{CodeKind, Column, HAlign, Item, Label, Line, Size, VAlign};
 use super::{Fonts, Gray, LabelError, Page, Rect, Rendered};
 use crate::Bitmap;
 
 /// Smallest base size tried, in dots.
 const MIN_EM: i32 = 4;
-/// Automatic sizes, in em: the side of a QR code, the height of a barcode and of an image.
+/// Automatic sizes, in em: the side of a QR code or AprilTag, the height of a barcode and of an image.
 const QR_EM: f32 = 4.0;
 const BARS_EM: f32 = 2.0;
 const IMAGE_EM: f32 = 3.0;
@@ -36,9 +36,14 @@ enum Prepared<'a> {
         size: Size,
         bold: bool,
     },
-    Qr {
+    /// A QR code or AprilTag.
+    Matrix {
+        kind: CodeKind,
+        data: &'a str,
         side: usize,
         dark: Vec<bool>,
+        quiet: usize,
+        sized: usize,
         size: Option<f32>,
     },
     Bars {
@@ -85,7 +90,7 @@ impl PColumn<'_> {
 #[derive(Clone, Copy)]
 enum Draw {
     Text { px: f32 },
-    Qr { module: i32 },
+    Matrix { module: i32 },
     Bars { module: i32 },
     Image,
 }
@@ -143,10 +148,28 @@ impl Layout<'_> {
                 let (w, ascent, descent) = self.fonts.measure(text, px, *bold);
                 (w, ascent + descent, ascent, Draw::Text { px })
             }
-            Prepared::Qr { side, size, .. } => {
-                let modules = (side + 2 * QR_QUIET) as i32;
-                let module = ((size.unwrap_or(QR_EM * em) / modules as f32) as i32).max(1);
-                (module * modules, module * modules, 0, Draw::Qr { module })
+            Prepared::Matrix {
+                kind,
+                side,
+                quiet,
+                sized,
+                size,
+                ..
+            } => {
+                let modules = (side + 2 * quiet) as i32;
+                let module = match size {
+                    // An AprilTag's size is a measurement, not a limit: print the nearest.
+                    Some(s) if matches!(kind, CodeKind::AprilTag(_)) => (s / *sized as f32).round(),
+                    Some(s) => (s / *sized as f32).floor(),
+                    None => (QR_EM * em / modules as f32).floor(),
+                };
+                let module = (module as i32).max(1);
+                (
+                    module * modules,
+                    module * modules,
+                    0,
+                    Draw::Matrix { module },
+                )
             }
             Prepared::Bars { dark, size } => {
                 let modules = (dark.len() + 2 * BAR_QUIET) as i32;
@@ -288,7 +311,20 @@ fn prepare<'a>(
             Item::Code { kind, data, size } => {
                 let size = size.map(|s| s.to_dots(dots_per_mm));
                 match encode(*kind, data)? {
-                    Modules::Matrix { side, dark } => Prepared::Qr { side, dark, size },
+                    Modules::Matrix {
+                        side,
+                        dark,
+                        quiet,
+                        sized,
+                    } => Prepared::Matrix {
+                        kind: *kind,
+                        data,
+                        side,
+                        dark,
+                        quiet,
+                        sized,
+                        size,
+                    },
                     Modules::Bars(dark) => Prepared::Bars { dark, size },
                 }
             }
@@ -355,8 +391,13 @@ fn draw_item(out: &mut Bitmap, fonts: &Fonts, item: &Prepared<'_>, b: &ItemBox, 
         (Prepared::Text { text, bold, .. }, Draw::Text { px }) => {
             fonts.draw(out, text, px, *bold, x, y + b.ascent);
         }
-        (Prepared::Qr { side, dark, .. }, Draw::Qr { module }) => {
-            let quiet = QR_QUIET as i32 * module;
+        (
+            Prepared::Matrix {
+                side, dark, quiet, ..
+            },
+            Draw::Matrix { module },
+        ) => {
+            let quiet = *quiet as i32 * module;
             for (i, _) in dark.iter().enumerate().filter(|(_, d)| **d) {
                 let (mx, my) = ((i % side) as i32, (i / side) as i32);
                 rect(
@@ -479,16 +520,61 @@ fn warnings(
                         warn(format!("the font has no glyph for {c:?}"));
                     }
                 }
-                (Prepared::Qr { .. }, Draw::Qr { module }) if module < MIN_QR_MODULE => {
-                    warn(format!(
-                        "the QR code's modules are {module} dot(s) wide and may not scan \
-                         (shorten the data or give it more room)"
-                    ));
+                (Prepared::Matrix { kind, .. }, Draw::Matrix { module })
+                    if module < MIN_QR_MODULE =>
+                {
+                    warn(match kind {
+                        CodeKind::AprilTag(_) => format!(
+                            "the AprilTag's modules are {module} dot(s) wide and may not be \
+                             detected (give it more room)"
+                        ),
+                        _ => format!(
+                            "the QR code's modules are {module} dot(s) wide and may not scan \
+                             (shorten the data or give it more room)"
+                        ),
+                    });
                 }
                 (Prepared::Bars { .. }, Draw::Bars { module }) if module < MIN_BAR_MODULE => {
                     warn("the barcode's bars are 1 dot wide and may not scan".to_owned());
                 }
                 _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// The printed size of each AprilTag: whoever sets up the detector needs it.
+fn notes(columns: &[PColumn<'_>], boxes: &[ColumnBox], dots_per_mm: f32) -> Vec<String> {
+    let mut out = Vec::new();
+    for (col, cb) in columns.iter().zip(boxes) {
+        let items = col.items().zip(
+            cb.lines
+                .iter()
+                .flat_map(|l| &l.segments)
+                .flat_map(|s| &s.items),
+        );
+        for (item, b) in items {
+            if let (
+                Prepared::Matrix {
+                    kind: CodeKind::AprilTag(family),
+                    data,
+                    sized,
+                    ..
+                },
+                Draw::Matrix { module },
+            ) = (item, b.draw)
+            {
+                let dots = module * *sized as i32;
+                let note = format!(
+                    "AprilTag {} ID {}: tag size {:.2} mm ({dots} dots, {module} per module)",
+                    family.name(),
+                    data.trim(),
+                    dots as f32 / dots_per_mm,
+                );
+                if !out.contains(&note) {
+                    out.push(note);
+                }
             }
         }
     }
@@ -511,6 +597,7 @@ pub fn render(
         return Ok(Rendered {
             bitmap,
             warnings: Vec::new(),
+            notes: Vec::new(),
         });
     }
     let layout = Layout {
@@ -578,7 +665,12 @@ pub fn render(
         boxes.push(b);
     }
     let warnings = warnings(&columns, &boxes, fonts, page.dots_per_mm);
-    Ok(Rendered { bitmap, warnings })
+    let notes = notes(&columns, &boxes, page.dots_per_mm);
+    Ok(Rendered {
+        bitmap,
+        warnings,
+        notes,
+    })
 }
 
 #[cfg(test)]
@@ -778,6 +870,51 @@ mod tests {
         // Text starts to the right of the code.
         let (tl, ..) = ink_in(&r.bitmap, rt + 1, 320).expect("text drawn");
         assert!(tl > rt + 8, "text at {tl}, code ends {rt}");
+    }
+
+    #[test]
+    fn apriltags() {
+        let page = d101();
+        // tag36h11 is 10 modules across with its light ring: 8 dots each in 80 dots of height.
+        let r = draw("[apriltag:42][col][left]Dock 42", &page);
+        assert_in_safe(&r, &page);
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+        let (l, t, rt, bt) = ink_in(&r.bitmap, 0, 8 + 80).unwrap();
+        assert_eq!((rt - l + 1, bt - t + 1), (64, 64), "black square");
+        assert_eq!((l, t), (16, 16), "inside a light ring one module wide");
+        assert_eq!(
+            r.notes,
+            ["AprilTag tag36h11 ID 42: tag size 8.01 mm (64 dots, 8 per module)"]
+        );
+        // A size is the black square's edge, to the nearest whole dot per module: 20 mm is
+        // 159.8 dots, so 20 dots per module.
+        let page = b1();
+        let r = draw("[apriltag 20mm:0]", &page);
+        let (l, t, rt, bt) = ink(&r.bitmap);
+        assert_eq!((rt - l + 1, bt - t + 1), (160, 160));
+        assert!(
+            r.notes[0].contains("tag size 20.02 mm (160 dots"),
+            "{:?}",
+            r.notes
+        );
+        // tagStandard41h12 has code bits outside its border: the size spans the 5 modules
+        // inside the black ring, and the tag is 9 modules across.
+        let r = draw("[apriltag 41h12 10mm:0]", &page);
+        let (l, t, rt, bt) = ink(&r.bitmap);
+        assert_eq!((rt - l + 1, bt - t + 1), (9 * 16, 9 * 16));
+        assert!(r.notes[0].contains("tagStandard41h12 ID 0: tag size 10.01 mm (80 dots"));
+        // Too small to detect reliably.
+        let r = draw("[apriltag 2mm:0]", &page);
+        assert!(r.warnings.iter().any(|w| w.contains("may not be detected")));
+        assert!(
+            render(
+                &Label::parse("[apriltag:587]").unwrap(),
+                &page,
+                &Fonts::builtin(),
+                &no_images
+            )
+            .is_err()
+        );
     }
 
     #[test]

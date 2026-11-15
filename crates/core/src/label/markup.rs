@@ -76,6 +76,41 @@ pub const SMALL: f32 = 0.7;
 /// Relative size of `[big]` text.
 pub const BIG: f32 = 1.5;
 
+/// An AprilTag family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TagFamily {
+    /// tag36h11: 587 tags, the usual choice.
+    #[default]
+    Tag36h11,
+    /// tag25h9: 35 tags with larger modules.
+    Tag25h9,
+    /// tagStandard41h12: 2115 tags.
+    Standard41h12,
+}
+
+impl TagFamily {
+    /// The family's name in the AprilTag library.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Tag36h11 => "tag36h11",
+            Self::Tag25h9 => "tag25h9",
+            Self::Standard41h12 => "tagStandard41h12",
+        }
+    }
+
+    /// From a name, with or without its `tag`/`tagStandard` prefix: `36h11`, `tag25h9`.
+    fn parse(s: &str) -> Option<Self> {
+        let s = s.to_ascii_lowercase();
+        let s = s.strip_prefix("tag").unwrap_or(&s);
+        match s.strip_prefix("standard").unwrap_or(s) {
+            "36h11" => Some(Self::Tag36h11),
+            "25h9" => Some(Self::Tag25h9),
+            "41h12" => Some(Self::Standard41h12),
+            _ => None,
+        }
+    }
+}
+
 /// A barcode symbology.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeKind {
@@ -89,6 +124,8 @@ pub enum CodeKind {
     Ean8,
     /// UPC-A (11 digits, or 12 with a check digit).
     UpcA,
+    /// AprilTag fiducial marker; the data is the tag's ID.
+    AprilTag(TagFamily),
 }
 
 impl CodeKind {
@@ -100,6 +137,7 @@ impl CodeKind {
             Self::Ean13 => "ean13",
             Self::Ean8 => "ean8",
             Self::UpcA => "upca",
+            Self::AprilTag(_) => "apriltag",
         }
     }
 }
@@ -116,13 +154,14 @@ pub enum Item {
         /// Bold.
         bold: bool,
     },
-    /// A QR code or barcode.
+    /// A QR code, barcode or AprilTag.
     Code {
         /// Symbology.
         kind: CodeKind,
         /// The data to encode.
         data: String,
-        /// Height (for a QR code, the side). `None` = sized with the text.
+        /// Height (for a QR code, the side; for an AprilTag, the edge of its border square).
+        /// `None` = sized with the text.
         size: Option<Length>,
     },
     /// An image.
@@ -188,7 +227,8 @@ impl fmt::Display for MarkupError {
 impl std::error::Error for MarkupError {}
 
 const TAGS: &str = "left center right top middle bottom small normal big size:4mm b /b col \
-                    qr:DATA code128:DATA ean13:DIGITS ean8:DIGITS upca:DIGITS img:FILE";
+                    qr:DATA code128:DATA ean13:DIGITS ean8:DIGITS upca:DIGITS apriltag:ID \
+                    img:FILE";
 
 struct Parser {
     align: HAlign,
@@ -309,8 +349,9 @@ impl Parser {
                 Ok(())
             }
             "col" | "column" => bare("col").map(|()| self.end_column()),
-            "qr" | "code128" | "ean13" | "ean8" | "upca" | "upc" => {
-                let kind = match name.as_str() {
+            "qr" | "code128" | "ean13" | "ean8" | "upca" | "upc" | "apriltag" => {
+                let mut kind = match name.as_str() {
+                    "apriltag" => CodeKind::AprilTag(TagFamily::default()),
                     "qr" => CodeKind::Qr,
                     "code128" => CodeKind::Code128,
                     "ean13" => CodeKind::Ean13,
@@ -322,9 +363,20 @@ impl Parser {
                 })?;
                 let mut size = None;
                 for o in opts {
-                    size = Some(Length::parse(o).ok_or_else(|| {
-                        format!("unknown [{name}] option `{o}` (expected a size such as 8mm)")
-                    })?);
+                    if let (CodeKind::AprilTag(_), Some(family)) = (kind, TagFamily::parse(o)) {
+                        kind = CodeKind::AprilTag(family);
+                    } else if let Some(len) = Length::parse(o) {
+                        size = Some(len);
+                    } else if matches!(kind, CodeKind::AprilTag(_)) {
+                        return Err(format!(
+                            "unknown [apriltag] option `{o}` (expected a size such as 8mm, or \
+                             a family: 36h11, 25h9 or 41h12)"
+                        ));
+                    } else {
+                        return Err(format!(
+                            "unknown [{name}] option `{o}` (expected a size such as 8mm)"
+                        ));
+                    }
                 }
                 self.flush_text();
                 self.items.push(Item::Code {
@@ -376,6 +428,7 @@ fn example(kind: CodeKind) -> &'static str {
         CodeKind::Ean13 => "590123412345",
         CodeKind::Ean8 => "9638507",
         CodeKind::UpcA => "03600029145",
+        CodeKind::AprilTag(_) => "42",
     }
 }
 
@@ -567,5 +620,35 @@ mod tests {
         assert!(Label::parse("[size:huge]").is_err());
         assert!(Label::parse("[left:x]").is_err());
         assert!(Label::parse("[qr wide:x]").is_err());
+        assert!(Label::parse("[qr 36h11:x]").is_err());
+        assert!(Label::parse("[apriltag]").is_err());
+        assert!(Label::parse("[apriltag 16h5:1]").is_err());
+    }
+
+    #[test]
+    fn apriltags() {
+        let code = |markup: &str| {
+            let l = Label::parse(markup).unwrap();
+            match &l.columns[0].lines[0].segments[0].items[0] {
+                Item::Code { kind, data, size } => (*kind, data.clone(), *size),
+                other => panic!("not a code: {other:?}"),
+            }
+        };
+        assert_eq!(
+            code("[apriltag:42]"),
+            (CodeKind::AprilTag(TagFamily::Tag36h11), "42".into(), None)
+        );
+        assert_eq!(
+            code("[apriltag 20mm 25h9:3]"),
+            (
+                CodeKind::AprilTag(TagFamily::Tag25h9),
+                "3".into(),
+                Some(Length::Mm(20.0))
+            )
+        );
+        for name in ["41h12", "tag41h12", "standard41h12", "tagStandard41h12"] {
+            let (kind, ..) = code(&format!("[apriltag {name}:7]"));
+            assert_eq!(kind, CodeKind::AprilTag(TagFamily::Standard41h12));
+        }
     }
 }

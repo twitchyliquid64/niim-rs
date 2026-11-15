@@ -30,7 +30,7 @@ niimctl label -p D101 '[b]Spare keys[/b]\nGarage'   # print a label from markup
 
 ### Labels from markup
 
-`niimctl label` lays out text, QR codes, barcodes and images, as large as fits the label:
+`niimctl label` lays out text, QR codes, barcodes, AprilTags and images, as large as fits the label:
 
 ```sh
 niimctl label 'Hello'
@@ -52,11 +52,19 @@ niimctl label -f label.txt                     # or `-` to read standard input
 | `[col]` | Start a new column to the right. |
 | `[qr:DATA]` | QR code. |
 | `[code128:DATA]` `[ean13:DIGITS]` `[ean8:DIGITS]` `[upca:DIGITS]` | Barcodes. |
+| `[apriltag:ID]` | AprilTag, family tag36h11; `[apriltag 25h9:ID]` or `[apriltag 41h12:ID]` (tagStandard41h12) for another. |
 | `[img:FILE.png]` | Image, dithered; `[img threshold:FILE.png]` for logos and line art. |
 
 Codes and images take an optional height (`[qr 10mm:DATA]`, `[img 8mm:logo.png]`). Write `\[`, `\]`
 and `\\` for literal characters. Lines don't wrap: text shrinks to fit instead, and `niimctl` warns
 when text or a code gets too small to read or scan.
+
+An AprilTag's size (`[apriltag 20mm:42]`) is the tag size a detector is configured with for pose
+estimation: the edge of the black square, not the whole tag with its white surround (in
+tagStandard41h12, the outer edge of the white ring). Modules are whole dots, so the nearest
+achievable size is printed and `niimctl` reports it, e.g. `tag size 20.02 mm (160 dots, 20 per
+module)`. The tag tables come from the [AprilTag library](https://github.com/AprilRobotics/apriltag)
+(BSD 2-Clause, see `crates/core/src/label/apriltag_tables.rs`).
 
 - **Label size.** The printers can't report it, so it is looked up from the roll's RFID tag (known:
   B1 50 × 30 mm, D101 40 × 12 mm), falling back to the model's stock label. Otherwise pass

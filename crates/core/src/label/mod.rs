@@ -1,4 +1,5 @@
-//! Labels from a line of markup: text, QR codes, barcodes and images, laid out to fit.
+//! Labels from a line of markup: text, QR codes, barcodes, AprilTags and images, laid out to
+//! fit.
 //!
 //! ```
 //! use niim_core::label::{Fonts, Label, Page, no_images, render};
@@ -29,10 +30,15 @@
 //! | `[col]` | Start a new column to the right. |
 //! | `[qr:DATA]` | QR code. |
 //! | `[code128:DATA]` `[ean13:DIGITS]` `[ean8:DIGITS]` `[upca:DIGITS]` | Barcodes. Check digits are added if missing and verified if given. |
+//! | `[apriltag:ID]` | AprilTag, family tag36h11; `[apriltag 25h9:ID]` and `[apriltag 41h12:ID]` (tagStandard41h12) pick another. |
 //! | `[img:FILE]` | Image, dithered to black and white; `[img threshold:FILE]` cuts at mid-grey instead (crisper for logos). |
 //!
 //! Codes and images take an optional height before the colon: `[qr 10mm:DATA]`,
-//! `[code128 6mm:DATA]`, `[img 8mm:logo.png]`.
+//! `[code128 6mm:DATA]`, `[img 8mm:logo.png]`. For an AprilTag the size is the tag size a
+//! detector is configured with for pose estimation: the edge of the black square (in
+//! tagStandard41h12, the outer edge of the white ring), not the whole tag with its surround.
+//! Modules are whole dots, so the size printed is the nearest achievable;
+//! [`Rendered::notes`] reports it.
 //!
 //! # Layout
 //!
@@ -42,6 +48,7 @@
 //! holding only codes or images are as wide as their content; columns with text share the rest
 //! of the width equally.
 
+mod apriltag_tables;
 mod code;
 mod font;
 mod image;
@@ -53,7 +60,7 @@ pub use image::Gray;
 pub use layout::render;
 pub use markup::{
     BIG, CodeKind, Column, HAlign, Item, Label, Length, Line, MarkupError, SMALL, Segment, Size,
-    VAlign,
+    TagFamily, VAlign,
 };
 
 use crate::{Bitmap, LabelSize, Margins};
@@ -113,6 +120,8 @@ pub struct Rendered {
     /// Things that will print but may disappoint: tiny text, codes too fine to scan, characters
     /// the font lacks.
     pub warnings: Vec<String>,
+    /// Things worth knowing about the result: the printed size of each AprilTag.
+    pub notes: Vec<String>,
 }
 
 /// Why a label could not be rendered.
@@ -125,7 +134,7 @@ pub enum LabelError {
     /// A font could not be loaded.
     #[error("cannot load font: {0}")]
     Font(String),
-    /// A QR code or barcode cannot encode its data.
+    /// A QR code, barcode or AprilTag cannot encode its data.
     #[error("{0}")]
     Code(String),
     /// An image could not be loaded.

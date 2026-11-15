@@ -23,7 +23,7 @@
 //! 5. [`discover`] / [`Discovered`]: find and connect.
 //!
 //! Beside the stack, [`label`] (feature `label`) turns a line of markup into a [`Bitmap`]:
-//! text, QR codes, barcodes and images, laid out to fit a label.
+//! text, QR codes, barcodes, AprilTags and images, laid out to fit a label.
 
 #![warn(missing_docs)]
 
