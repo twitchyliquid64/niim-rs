@@ -1,0 +1,94 @@
+name: CI
+on:
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+    workflow_dispatch:
+
+env:
+    CARGO_TERM_COLOR: always
+    CARGO_INCREMENTAL: "0"
+    CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+# Cancel an in-progress run when a newer commit is pushed to the same ref.
+# main is excluded so a push to main never gets cancelled mid-flight.
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+    fmt:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+            - name: Run rustfmt
+              run: cargo fmt --all -- --check
+
+    clippy:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+            - name: Install libdbus headers (btleplug on Linux)
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
+            - name: Run Clippy
+              run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+    test:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest]
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+            - name: Install libdbus headers (btleplug on Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
+            - name: Run tests
+              run: cargo test --workspace --all-features --locked
+
+    # Building must need nothing but cargo: no C compiler, no system dev headers.
+    # Fail if any crate that drives a C toolchain or system-library lookup
+    # appears in the dependency graph.
+    #   macOS: strict, no exceptions.
+    #   Linux: the one allowed exception is libdbus-sys (btleplug -> BlueZ over
+    #          D-Bus), which needs pkg-config + libdbus-1-dev. Anything else fails.
+    no-c:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+            - name: Check for C build dependencies
+              run: |
+                  banned='^(cc|cmake|bindgen|pkg-config|vcpkg|system-deps)$'
+                  fail=0
+                  check() {
+                      target=$1; shift
+                      found=$(cargo tree --workspace --all-features --locked --target "$target" "$@" \
+                          --edges normal,build --prefix none --format '{p}' \
+                          | awk '{print $1}' | sort -u | grep -E "$banned" || true)
+                      if [ -n "$found" ]; then
+                          echo "::error::C toolchain crates in the $target dependency graph: $found"
+                          for c in $found; do cargo tree --workspace --all-features --target "$target" "$@" -i "$c"; done
+                          fail=1
+                      else
+                          echo "$target: no disallowed C build dependencies."
+                      fi
+                  }
+                  check aarch64-apple-darwin
+                  check x86_64-apple-darwin
+                  check x86_64-unknown-linux-gnu --prune libdbus-sys
+                  check aarch64-unknown-linux-gnu --prune libdbus-sys
+                  exit $fail

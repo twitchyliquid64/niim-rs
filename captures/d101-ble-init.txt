@@ -1,0 +1,77 @@
+# D101-F310020193, model 2560, fw 07 02 / hw 07 01 (raw bytes), BLE via macOS (btleplug), 2026-11-14
+# Captured with: cargo run -p niim-core --example probe -- probe D101
+# found D101-F310020193 (063f9dae-e4fa-c9d2-96bc-4f3196108b77)
+# GATT services:
+#   service 49535343-fe7d-4ae5-8fa9-9fafd205e455 primary=true
+#     char 49535343-1e4d-4bd9-ba61-23c647249616 props=CharPropFlags(READ | NOTIFY)
+#     char 49535343-6daa-4d02-abf6-19569aca69fe props=CharPropFlags(WRITE_WITHOUT_RESPONSE)
+#     char 49535343-8841-43f4-a8d4-ecbe34729bb3 props=CharPropFlags(WRITE)
+#     char 49535343-aca3-481c-91ec-d85e28a60318 props=CharPropFlags(READ | WRITE | NOTIFY)
+#   service e7810a71-73ae-499d-8c15-faa9aef0c3f2 primary=true
+#     char bef8d6c9-9c21-4c9e-b632-bd58c1009f9f props=CharPropFlags(READ | WRITE_WITHOUT_RESPONSE | NOTIFY)
+# using char bef8d6c9-9c21-4c9e-b632-bd58c1009f9f in service e7810a71-73ae-499d-8c15-faa9aef0c3f2
+>> 03 55 55 c1 01 01 c1 aa aa (Connect 01)
+<< 55 55 c2 01 03 c0 aa aa (In_Connect, 1 bytes: 03)
+>> 55 55 a5 01 01 a5 aa aa (PrinterStatusData 01)
+<< 55 55 b5 0a 30 30 06 a4 00 c8 00 00 00 0a df aa aa (In_PrinterStatusData, 10 bytes: 30 30 06 a4 00 c8 00 00 00 0a)
+>> 55 55 40 01 08 49 aa aa (PrinterInfo 08)
+<< 55 55 48 02 0a 00 40 aa aa (In_PrinterInfo*, 2 bytes: 0a 00)
+>> 55 55 40 01 0b 4a aa aa (PrinterInfo 0b)
+<< 55 55 4b 05 f3 10 02 01 93 3d aa aa (In_PrinterInfo*, 5 bytes: f3 10 02 01 93)
+>> 55 55 40 01 0d 4c aa aa (PrinterInfo 0d)
+<< 55 55 4d 06 70 94 0f 93 02 01 30 aa aa (In_PrinterInfo*, 6 bytes: 70 94 0f 93 02 01)
+>> 55 55 40 01 0a 4b aa aa (PrinterInfo 0a)
+<< 55 55 4a 01 03 48 aa aa (In_PrinterInfo*, 1 bytes: 03)
+>> 55 55 40 01 07 46 aa aa (PrinterInfo 07)
+<< 55 55 47 01 01 47 aa aa (In_PrinterInfo*, 1 bytes: 01)
+>> 55 55 40 01 03 42 aa aa (PrinterInfo 03)
+<< 55 55 43 01 01 43 aa aa (In_PrinterInfo*, 1 bytes: 01)
+>> 55 55 40 01 01 40 aa aa (PrinterInfo 01)
+<< 55 55 41 01 02 42 aa aa (In_PrinterInfo*, 1 bytes: 02)
+>> 55 55 40 01 02 43 aa aa (PrinterInfo 02)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 40 01 06 47 aa aa (PrinterInfo 06)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 40 01 09 48 aa aa (PrinterInfo 09)
+<< 55 55 49 02 07 02 4e aa aa (In_PrinterInfo*, 2 bytes: 07 02)
+>> 55 55 40 01 0c 4d aa aa (PrinterInfo 0c)
+<< 55 55 4c 02 07 01 48 aa aa (In_PrinterInfo*, 2 bytes: 07 01)
+>> 55 55 40 01 0e 4f aa aa (PrinterInfo 0e)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 40 01 0f 4e aa aa (PrinterInfo 0f)
+<< 55 55 4f 02 00 14 59 aa aa (In_PrinterInfo*, 2 bytes: 00 14)
+>> 55 55 dc 01 03 de aa aa (Heartbeat 03)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 dc 01 01 dc aa aa (Heartbeat 01)
+<< 55 55 dd 0a 1e 9a 00 70 00 70 32 46 01 03 25 aa aa (In_HeartbeatAdvanced1, 10 bytes: 1e 9a 00 70 00 70 32 46 01 03)
+>> 55 55 dc 01 02 df aa aa (Heartbeat 02)
+<< 55 55 df 0c 00 00 00 39 00 00 00 00 00 00 00 00 ea aa aa (In_HeartbeatPrinterInfo, 12 bytes: 00 00 00 39 00 00 00 00 00 00 00 00)
+>> 55 55 dc 01 04 d9 aa aa (Heartbeat 04)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 58 03 02 01 01 59 aa aa (SoundSettings 02 01 01)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 58 03 02 02 01 5a aa aa (SoundSettings 02 02 01)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 1a 01 01 1a aa aa (RfidInfo 01)
+<< 55 55 1b 27 88 1d a0 85 34 91 00 00 08 30 31 32 32 32 32 38 31 10 50 5a 30 46 31 32 38 30 30 33 30 31 30 36 37 35 00 c0 00 32 01 bb aa aa (In_RfidInfo, 39 bytes: 88 1d a0 85 34 91 00 00 08 30 31 32 32 32 32 38 31 10 50 5a 30 46 31 32 38 30 30 33 30 31 30 36 37 35 00 c0 00 32 01)
+>> 55 55 59 01 01 59 aa aa (GetPaperInfo 01)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 af 01 01 af aa aa (GetPrinterCapabilities 01)
+<< 55 55 00 01 01 00 aa aa (In_NotSupported, 1 bytes: 01)
+>> 55 55 a3 01 01 a3 aa aa (PrintStatus 01)
+<< 55 55 b3 08 00 00 00 00 06 a3 00 00 1e aa aa (In_PrintStatus, 8 bytes: 00 00 00 00 06 a3 00 00)
+
+# --- State experiments (same session/day). Heartbeat type 1 (DD), type 2 (DF), PrintStatus (B3), RfidInfo (1B) ---
+# lid OPEN, roll in:
+<< 55 55 dd 0a 1e c6 00 52 00 52 32 46 00 03 78 aa aa
+<< 55 55 df 0c 00 00 00 39 00 00 00 00 00 00 00 00 ea aa aa
+<< 55 55 b3 08 00 00 00 00 06 a3 01 00 1f aa aa
+# lid CLOSED, roll in:
+<< 55 55 dd 0a 1e d3 00 70 00 70 32 46 01 03 6c aa aa
+<< 55 55 df 0c 00 00 00 39 00 00 00 00 00 00 00 00 ea aa aa
+<< 55 55 b3 08 00 00 00 00 06 a3 00 00 1e aa aa
+# lid CLOSED, roll REMOVED:
+<< 55 55 dd 0a 1e d4 00 91 00 91 32 46 01 03 6b aa aa
+<< 55 55 df 0c 00 00 00 39 00 00 00 00 00 00 00 00 ea aa aa
+<< 55 55 b3 08 00 00 00 00 06 a3 00 00 1e aa aa
+<< 55 55 1b 01 00 1a aa aa
